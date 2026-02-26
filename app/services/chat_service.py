@@ -1,62 +1,35 @@
-import time
-from app.db.validator import validate_sql
+import json
+from app.llm.prompt_builder import build_messages
+from app.llm.provider import generate_llm_response
 
-def generate_sql_response(message: str):
-    start_time = time.time()
+def handle_chat(message: str):
 
-    msg = message.lower()
+    messages = build_messages(message)
 
-    if "how many assets" in msg:
-        sql = """
-        SELECT COUNT(*) AS AssetCount
-        FROM Assets
-        WHERE Status <> 'Disposed';
-        """
-        answer = "You have {value} assets in your inventory."
+    llm_result = generate_llm_response(messages)
 
-    elif "assets by site" in msg:
-        sql = """
-        SELECT s.SiteName, COUNT(*) AS AssetCount
-        FROM Assets a
-        JOIN Sites s ON s.SiteId = a.SiteId
-        WHERE a.Status <> 'Disposed'
-        GROUP BY s.SiteName
-        ORDER BY AssetCount DESC;
-        """
-        answer = "Here is the asset count by site."
+    content = llm_result["content"]
 
-    elif "open purchase orders" in msg:
-        sql = """
-        SELECT PONumber, PODate, Status
-        FROM PurchaseOrders
-        WHERE Status = 'Open';
-        """
-        answer = "Here are your open purchase orders."
-
-    else:
-        sql = "SELECT 'Unknown question' AS Message;"
-        answer = "Sorry, I do not understand the question yet."
-
-    # Validate SQL
-    if not validate_sql(sql):
-        return {
-            "natural_language_answer": "Unsafe query detected.",
-            "sql_query": "",
-            "token_usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-            "latency_ms": 0,
-            "provider": "manual",
-            "model": "rule-based",
-            "status": "error"
-        }
-
-    latency = float((time.time() - start_time) * 1000)
+    # strip markdown code fences if present (````json ... ```)
+    text = content.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        # drop opening fence
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        # drop closing fence
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines)
+    try:
+        parsed = json.loads(text)
+    except Exception as e:
+        # provide context for debugging
+        raise ValueError(f"failed to parse LLM output as JSON: {e}\nraw_content={content}")
 
     return {
-        "natural_language_answer": answer,
-        "sql_query": sql.strip(),
-        "token_usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-        "latency_ms": latency,
-        "provider": "manual",
-        "model": "rule-based",
-        "status": "ok"
+        "answer": parsed["natural_language_answer"],
+        "sql": parsed["sql_query"],
+        "latency": llm_result["latency"],
+        "token_usage": llm_result["token_usage"]
     }
