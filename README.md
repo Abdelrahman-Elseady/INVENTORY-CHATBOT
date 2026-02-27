@@ -22,6 +22,8 @@ Returns:
 This project follows clean architecture principles and uses raw SQL execution for full control.
 
 🏗 Architecture
+<img width="736" height="442" alt="Image" src="https://github.com/user-attachments/assets/c52b7898-c772-42fd-bfa3-68e2efdbbb52" />
+
 
 High-level flow:
 
@@ -32,7 +34,7 @@ FastAPI Endpoint (/api/chat)
   ↓
 Chat Service Layer
   ↓
-LLM Provider (Gemini / OpenAI)
+LLM Provider (Gemini)
   ↓
 SQL Validator
   ↓
